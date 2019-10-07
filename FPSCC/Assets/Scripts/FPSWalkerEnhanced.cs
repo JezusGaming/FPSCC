@@ -99,13 +99,12 @@ public class FPSWalkerEnhanced : MonoBehaviour
 			m_Speed = (m_Speed == m_WalkSpeed ? m_RunSpeed : m_WalkSpeed);
 		}
 	}
-
+	
 
 	private void FixedUpdate()
 	{
 
         float y = mycamera.transform.eulerAngles.y;
-        //float z = mycamera.transform.eulerAngles.z;
         Vector3 DirsedRot = new Vector3(0, y, 0);
         transform.rotation = Quaternion.Euler(DirsedRot);
 
