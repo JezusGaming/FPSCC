@@ -33,13 +33,6 @@ public class TestScript : MonoBehaviour
 	public float sideStrafeSpeed = 1.0f;          // What the max speed to generate when side strafing
 	public float jumpSpeed = 8.0f;                // The speed at which the character's up axis gains when hitting jump
 
-	/*FPS Stuff */
-	public float fpsDisplayRate = 4.0f; // 4 updates per sec
-
-	private int frameCount = 0;
-	private float dt = 0.0f;
-	private float fps = 0.0f;
-
 	private CharacterController _controller;
 
 	// Camera rotations
@@ -83,15 +76,6 @@ public class TestScript : MonoBehaviour
 
 	private void Update()
 	{
-		// Do FPS calculation
-		frameCount++;
-		dt += Time.deltaTime;
-		if (dt > 1.0 / fpsDisplayRate)
-		{
-			fps = Mathf.Round(frameCount / dt);
-			frameCount = 0;
-			dt -= 1.0f / fpsDisplayRate;
-		}
 		/* Ensure that the cursor is locked into the screen */
 		if (Cursor.lockState != CursorLockMode.Locked)
 		{
@@ -99,20 +83,20 @@ public class TestScript : MonoBehaviour
 				Cursor.lockState = CursorLockMode.Locked;
 		}
 
-		/* Camera rotation stuff, mouse controls this shit */
+		// Gets the mouses input to rotate the camera based on it
 		rotX -= Input.GetAxisRaw("Mouse Y") * xMouseSensitivity * 0.02f;
 		rotY += Input.GetAxisRaw("Mouse X") * yMouseSensitivity * 0.02f;
 
-		// Clamp the X rotation
+		// Clamp the X rotation and prevents gimbal lock
 		if (rotX < -90)
 			rotX = -90;
 		else if (rotX > 90)
 			rotX = 90;
 
-		this.transform.rotation = Quaternion.Euler(0, rotY, 0); // Rotates the collider
-		playerView.rotation = Quaternion.Euler(rotX, rotY, 0); // Rotates the camera
-
-
+        // Rotates the collider
+        this.transform.rotation = Quaternion.Euler(0, rotY, 0);
+        // Rotates the camera
+        playerView.rotation = Quaternion.Euler(rotX, rotY, 0); 
 
 		/* Movement, here's the important part */
 		QueueJump();
@@ -124,11 +108,11 @@ public class TestScript : MonoBehaviour
 		// Move the controller
 		_controller.Move(playerVelocity * Time.deltaTime);
 
-		/* Calculate top velocity */
-		Vector3 udp = playerVelocity;
-		udp.y = 0.0f;
-		if (udp.magnitude > playerTopVelocity)
-			playerTopVelocity = udp.magnitude;
+		/* Calculate top velocity IDK if i can use this for locking the max velocity I THINK IT WAS USED FOR UI*/
+		//Vector3 udp = playerVelocity;
+		//udp.y = 0.0f;
+		//if (udp.magnitude > playerTopVelocity)
+		//	playerTopVelocity = udp.magnitude;
 
 		//Need to move the camera after the player has been moved because otherwise the camera will clip the player if going fast enough and will always be 1 frame behind.
 		// Set the camera's position to the transform
@@ -235,7 +219,7 @@ public class TestScript : MonoBehaviour
 		if (dot > 0)
 		{
 			playerVelocity.x = playerVelocity.x * speed + wishdir.x * k;
-			playerVelocity.y = playerVelocity.y * speed + wishdir.y * k;
+			playerVelocity.y = playerVelocity.y * zspeed + wishdir.y * k;
 			playerVelocity.z = playerVelocity.z * speed + wishdir.z * k;
 
 			playerVelocity.Normalize();

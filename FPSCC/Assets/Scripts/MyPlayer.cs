@@ -2,141 +2,397 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class MyPlayer : MonoBehaviour {
+public class MyPlayer : MonoBehaviour
+{
 
-	public float speed = 10.0f;
-	public float gravity = 10.0f;
 	public float maxVelocityChange = 10.0f;
 	public bool canJump = true;
 	public float jumpHeight = 2.0f;
 	private bool grounded = false;
-	Rigidbody RB;
-	public GameObject mycamera;
-    public RaycastHit Hit;
-    private bool Crouched;
-    private float yOffset;
 
-	void Awake()
+    // Transform of the camera
+    public Transform m_cameraTransform;
+    // The height at which the camera is bound to
+    public float m_fCameraYOffset = 0.6f;       
+    // Mouse X Sensitivity
+    public float m_fXMouseSensitivity = 30.0f;
+    // Mouse Y Sensitivity
+    public float m_fYMouseSensitivity = 30.0f;
+    // Camera rotation X
+    private float m_fRotX = 0.0f;
+    // Camera rotation Y
+    private float m_fRotY = 0.0f;
+
+    // Frame occuring factors
+    public float m_fGravity = 20.0f;
+    // Ground friction
+    public float m_fFriction = 3;                       
+    // Used to display real time fricton values
+    private float m_fPlayerFriction = 0.0f;
+
+    // Movement stuff
+    private float m_fVerticalMovement;
+    private float m_fHorizontalMovement;
+    // Ground run speed
+    public float m_fRunSpeed = 7.0f;
+    // Ground walk speed
+    public float m_fWalkSpeed = 3.0f;
+    // Ground crouch speed
+    public float m_fCrouchSpeed = 3.0f;
+    // Ground prone speed
+    public float m_fProneSpeed = 1.5f;              
+    // Ground accel
+    public float m_fRunAcceleration = 14.0f;        
+    // Deacceleration that occurs when running on the ground
+    public float m_fRunDeacceleration = 10.0f;       
+    // Air accel
+    public float m_fAirAcceleration = 2.0f;          
+    // Deacceleration experienced when ooposite strafing
+    public float m_fAirDecceleration = 2.0f;         
+    // How precise air control is
+    public float m_fAirControl = 0.3f;               
+    // How fast acceleration occurs to get up to sideStrafeSpeed when
+    public float m_fSideStrafeAcceleration = 50.0f;  
+    // What the max speed to generate when side strafing
+    public float m_fSideStrafeSpeed = 1.0f;          
+    // The speed at which the character's up axis gains when hitting jump
+    public float m_fJumpSpeed = 8.0f;
+    // Used for sprinting
+    private bool m_bRun = false;
+    // Used to crouch
+    private bool m_bCrouched = false;
+    // Used to prone
+    private bool m_bProned = false;
+
+    // Q3: players can queue the next jump just before he hits the ground
+    private bool m_bWishJump = false;
+
+
+    private Vector3 m_v3MoveDirectionNorm = Vector3.zero;
+    private Vector3 m_v3PlayerVelocity = Vector3.zero;
+    private float m_fPlayerTopVelocity = 0.0f;
+
+    private CharacterController FPSCC;
+
+    void Awake()
 	{
+        // Hide and lock the cursor
+        Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
-		RB = gameObject.GetComponent<Rigidbody>();
-        Crouched = false;
-        yOffset = 1.0f * 0.5f;
+
+        // Checks if the camera transform has been set
+        if (m_cameraTransform == null)
+        {
+            // If the camera transform has not been set then use the main camera
+            Camera mainCamera = Camera.main;
+            if (mainCamera != null)
+                m_cameraTransform = mainCamera.gameObject.transform;
+        }
+
+        // Moves the camera into a FPS postion in the player capsule
+        m_cameraTransform.position = new Vector3(transform.position.x,
+                                                 transform.position.y + m_fCameraYOffset,    
+                                                 transform.position.z);
+
+        FPSCC = GetComponent<CharacterController>();
 	}
 
-	void FixedUpdate()
+    private void Update()
+    {
+        /* Ensure that the cursor is locked into the screen */
+        if (Cursor.lockState != CursorLockMode.Locked)
+        {
+            if (Input.GetButtonDown("Fire1"))
+                Cursor.lockState = CursorLockMode.Locked;
+        }
+
+        // Gets the mouses input to rotate the camera based on it
+        m_fRotX -= Input.GetAxisRaw("Mouse Y") * m_fXMouseSensitivity * 0.02f;
+        m_fRotY += Input.GetAxisRaw("Mouse X") * m_fYMouseSensitivity * 0.02f;
+
+        // Clamp the X rotation and prevents gimbal lock
+        if (m_fRotX < -90)
+            m_fRotX = -90;
+        else if (m_fRotX > 90)
+            m_fRotX = 90;
+
+        // Rotates the collider
+        this.transform.rotation = Quaternion.Euler(0, m_fRotY, 0);
+        // Rotates the camera
+        m_cameraTransform.rotation = Quaternion.Euler(m_fRotX, m_fRotY, 0);
+
+        /* Calculate top velocity IDK if i can use this for locking the max velocity I THINK IT WAS USED FOR UI*/
+        //Vector3 udp = playerVelocity;
+        //udp.y = 0.0f;
+        //if (udp.magnitude > playerTopVelocity)
+        //	playerTopVelocity = udp.magnitude;
+
+        /* Movement, here's the important part */
+        // que jump checks if space is held down after each jump which ques the jump as the player is wishing to jump it should not que just jump when they are grounded and space is pressed.
+        QueueJump();
+        if (FPSCC.isGrounded)
+            GroundMove();
+        else if (!FPSCC.isGrounded)
+            AirMove();
+
+        // Move the controller
+        FPSCC.Move(m_v3PlayerVelocity * Time.deltaTime);
+
+        // Set the camera's position to the transform
+        m_cameraTransform.position = new Vector3(transform.position.x,
+                                                 transform.position.y + m_fCameraYOffset,
+                                                 transform.position.z);
+    }
+
+
+    void FixedUpdate()
 	{
-		float y = mycamera.transform.eulerAngles.y;
-		float z = mycamera.transform.eulerAngles.z;
-		Vector3 DirsedRot = new Vector3(0, y, z);
-		transform.rotation = Quaternion.Euler(DirsedRot);
+		
+	}
 
-		if (grounded)
-		{
-			// Calculate how fast we should be moving
-			Vector3 targetVelocity = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
-			targetVelocity = transform.TransformDirection(targetVelocity);
-			targetVelocity *= speed;
+    private void SetMoveDir()
+    {
+        m_fHorizontalMovement = Input.GetAxisRaw("Vertical");
+        m_fVerticalMovement = Input.GetAxisRaw("Horizontal");
+    }
 
-			// Apply a force that attempts to reach our target velocity
-			Vector3 velocity = RB.velocity;
-			Vector3 velocityChange = (targetVelocity - velocity);
-			velocityChange.x = Mathf.Clamp(velocityChange.x, -maxVelocityChange, maxVelocityChange);
-			velocityChange.z = Mathf.Clamp(velocityChange.z, -maxVelocityChange, maxVelocityChange);
-			velocityChange.y = 0;
-			RB.AddForce(velocityChange, ForceMode.VelocityChange);
+    private void QueueJump()
+    {
+        if (Input.GetButton("Jump") && !m_bWishJump)
+            m_bWishJump = true;
+        if (Input.GetButtonUp("Jump"))
+            m_bWishJump = false;
+    }
+    // Wierd diagnol movement from desDir need to maybe disable forward movement while strafing or some how stop the fast speed increase.
+    private void AirMove()
+    {
+        Vector3 v3DesDir;
+        float fDesVel = m_fAirAcceleration;
+        float fAccel;
 
-            Vector3 down = transform.TransformDirection(Vector3.down);
+        SetMoveDir();
 
-            if (Physics.Raycast(transform.position, down, out Hit, 1.5f))
+        v3DesDir = new Vector3(m_fVerticalMovement , 0, m_fHorizontalMovement);
+
+        v3DesDir = transform.TransformDirection(v3DesDir);
+
+        float fDesSpeed = v3DesDir.magnitude;
+        fDesSpeed *= m_fRunSpeed;
+
+        v3DesDir.Normalize();
+        m_v3MoveDirectionNorm = v3DesDir;
+
+        // CPM: Aircontrol
+        float fDesSpeed2 = fDesSpeed;
+        if (Vector3.Dot(m_v3PlayerVelocity, v3DesDir) < 0)
+            fAccel = m_fAirDecceleration;
+        else
+            fAccel = m_fAirAcceleration;
+        // If the player is ONLY strafing left or right
+        if (m_fVerticalMovement == 0 &&  m_fHorizontalMovement != 0)
+        {
+            if (fDesSpeed > m_fSideStrafeSpeed)
+                fDesSpeed = m_fSideStrafeSpeed;
+            fAccel = m_fSideStrafeAcceleration;
+            Debug.Log(m_v3PlayerVelocity);
+        }
+
+        // If the player is ONLY strafing forward or backward
+        if (m_fVerticalMovement != 0 && m_fHorizontalMovement == 0)
+        {
+            if (fDesSpeed > m_fSideStrafeSpeed)
+                fDesSpeed = m_fSideStrafeSpeed;
+            fAccel = m_fSideStrafeAcceleration;
+            Debug.Log(m_v3PlayerVelocity);
+        }
+
+        Accelerate(v3DesDir, fDesSpeed, fAccel);
+        if (m_fAirControl > 0)
+            AirControl(v3DesDir, fDesSpeed2);
+        // !CPM: Aircontrol
+
+        // Apply gravity
+        m_v3PlayerVelocity.y -= m_fGravity * Time.deltaTime;
+    }
+
+
+    private void AirControl(Vector3 v3DesDir, float fDesSpeed)
+    {
+        float zspeed;
+        float speed;
+        float dot;
+        float k;
+
+        // Can't control movement if not moving forward or backward
+        if (Mathf.Abs(m_fVerticalMovement) < 0.001 || Mathf.Abs(fDesSpeed) < 0.001)
+            return;
+        zspeed = m_v3PlayerVelocity.y;
+        m_v3PlayerVelocity.y = 0;
+        /* Next two lines are equivalent to idTech's VectorNormalize() */
+        speed = m_v3PlayerVelocity.magnitude;
+        m_v3PlayerVelocity.Normalize();
+
+        dot = Vector3.Dot(m_v3PlayerVelocity, v3DesDir);
+        k = 32;
+        k *= m_fAirControl * dot * dot * Time.deltaTime;
+
+        // Change direction while slowing down
+        if (dot > 0)
+        {
+            m_v3PlayerVelocity.x = m_v3PlayerVelocity.x * speed + v3DesDir.x * k;
+            m_v3PlayerVelocity.y = m_v3PlayerVelocity.y * speed + v3DesDir.y * k;
+            m_v3PlayerVelocity.z = m_v3PlayerVelocity.z * speed + v3DesDir.z * k;
+
+            m_v3PlayerVelocity.Normalize();
+            m_v3MoveDirectionNorm = m_v3PlayerVelocity;
+
+        }
+
+        m_v3PlayerVelocity.x *= speed;
+        m_v3PlayerVelocity.y = zspeed; // Note this line
+        m_v3PlayerVelocity.z *= speed;
+
+        // Stops the player moving extremly fast by limiting the speed
+        if (m_fVerticalMovement != 0 && m_fHorizontalMovement != 0)
+        {
+            if(m_v3PlayerVelocity.x >= 10)
             {
-                // Jump
-                if (canJump && Input.GetButton("Jump"))
-                {
-                    RB.velocity = new Vector3(velocity.x, CalculateJumpVerticalSpeed(), velocity.z);
-                }
+                m_v3PlayerVelocity.x = 10;
             }
-
-            Vector3 up = transform.TransformDirection(Vector3.up);
-
-            if (Physics.Raycast(transform.position, up, out Hit, 1.0f))
+            if (m_v3PlayerVelocity.x <= -10)
             {
-                if (Input.GetKeyDown(KeyCode.LeftControl) && !Crouched)
-                {
-                    Vector3 Scale = new Vector3(transform.localScale.x, 0.5f, transform.localScale.z);
-                    transform.localScale = Scale;
-                    Crouched = true;
-                    transform.position -= Vector3.up * yOffset;
-                }
+                m_v3PlayerVelocity.x = -10;
             }
-            else
+            if (m_v3PlayerVelocity.z >= 10)
             {
-                if (Input.GetKeyDown(KeyCode.LeftControl))
-                {
-                    if (!Crouched)
-                    {
-                        Vector3 Scale = new Vector3(transform.localScale.x, 0.5f, transform.localScale.z);
-                        transform.localScale = Scale;
-                        Crouched = true;
-                        transform.position -= Vector3.up * yOffset;
-                    }
-                    else
-                    {
-                        Vector3 Scale = new Vector3(transform.localScale.x, 1.0f, transform.localScale.z);
-                        transform.localScale = Scale;
-                        Crouched = false;
-                        transform.position += Vector3.up * yOffset;
-                    }
-                }
+                m_v3PlayerVelocity.z = 10;
             }
-
-            if (Input.GetMouseButtonDown(0))
+            if (m_v3PlayerVelocity.z <= -10)
             {
-                Vector3 fwd = transform.TransformDirection(Vector3.forward);
-
-                if (Physics.Raycast(transform.position, fwd, out Hit, 2))
-                {
-                    //print("There is something in front of the object!");
-                    if(Hit.rigidbody)
-                        Hit.rigidbody.velocity = fwd * 10;
-                }
-            }
-            if (Input.GetMouseButtonDown(1))
-            {
-                Vector3 fwd = transform.TransformDirection(Vector3.forward);
-
-                if (Physics.Raycast(transform.position, fwd, out Hit, 2))
-                {
-                    //print("There is something in front of the object!");
-                    if (Hit.rigidbody)
-                        Hit.rigidbody.velocity = fwd * 20;
-                }
+                m_v3PlayerVelocity.z = -10;
             }
         }
 
-        // We apply gravity manually for more tuning control
-        RB.AddForce(new Vector3(0, -gravity * RB.mass, 0));
+    }
 
-		grounded = false;
-	}
+    private void GroundMove()
+    {
+        Vector3 v3DesDir;
 
-	void OnCollisionStay(Collision other)
-	{
-		if(other.gameObject.tag == "Wall")
+        SetMoveDir();
+
+        v3DesDir = new Vector3(m_fVerticalMovement, 0, m_fHorizontalMovement);
+        v3DesDir = transform.TransformDirection(v3DesDir);
+        v3DesDir.Normalize();
+        m_v3MoveDirectionNorm = v3DesDir;
+
+        var DesSpeed = v3DesDir.magnitude;
+
+		if(m_bCrouched)
 		{
-			canJump = false;
+			DesSpeed *= m_fCrouchSpeed;
+
+			Accelerate(v3DesDir, DesSpeed, m_fRunAcceleration);
 		}
 		else
 		{
-			canJump = true;
-			grounded = true;
+			DesSpeed *= m_fRunSpeed;
+
+			Accelerate(v3DesDir, DesSpeed, m_fRunAcceleration);
 		}
+        
+
+        // Reset the gravity velocity
+        m_v3PlayerVelocity.y = -m_fGravity * Time.deltaTime;
+
+        if (Input.GetButton("Jump"))
+        {
+            m_v3PlayerVelocity.y = m_fJumpSpeed;
+            // m_bWishJump = false;
+        }
+
+		if (Input.GetButton("Crouch"))
+		{
+			m_bCrouched = true;
+		}
+		else if(Input.GetButtonUp("Crouch"))
+		{
+			m_bCrouched = false;
+		}
+
+		// Do not apply friction if the player is queueing up the next jump
+		if (!m_bWishJump)
+		{
+			ApplyFriction(1.0f);
+		}
+		else
+		{
+			ApplyFriction(0);
+		}
+
+    }
+
+    private void ApplyFriction(float t)
+    {
+        Vector3 vec = m_v3PlayerVelocity;
+        float speed;
+        float newspeed;
+        float control;
+        float drop;
+
+        vec.y = 0.0f;
+        speed = vec.magnitude;
+        drop = 0.0f;
+
+        /* Only if the player is on the ground then apply friction */
+        if (FPSCC.isGrounded)
+        {
+            control = speed < m_fRunDeacceleration ? m_fRunDeacceleration : speed;
+            drop = control * m_fFriction * Time.deltaTime * t;
+        }
+
+        newspeed = speed - drop;
+        m_fPlayerFriction = newspeed;
+        if (newspeed < 0)
+            newspeed = 0;
+        if (speed > 0)
+            newspeed /= speed;
+
+        m_v3PlayerVelocity.x *= newspeed;
+        m_v3PlayerVelocity.z *= newspeed;
+    }
+
+    private void Accelerate(Vector3 v3DesDir, float fDesSpeed, float fAccel)
+    {
+        float addspeed;
+        float accelspeed;
+        float currentspeed;
+
+        currentspeed = Vector3.Dot(m_v3PlayerVelocity, v3DesDir);
+        addspeed = fDesSpeed - currentspeed;
+        if (addspeed <= 0)
+            return;
+        accelspeed = fAccel * Time.deltaTime * fDesSpeed;
+        if (accelspeed > addspeed)
+            accelspeed = addspeed;
+
+        m_v3PlayerVelocity.x += accelspeed * v3DesDir.x;
+        m_v3PlayerVelocity.z += accelspeed * v3DesDir.z;
+    }
+
+	private void Crouch()
+	{
+
 	}
 
-	float CalculateJumpVerticalSpeed()
+	private void Prone()
 	{
-		// From the jump height and gravity we deduce the upwards speed 
-		// for the character to reach at the apex.
-		return Mathf.Sqrt(2 * jumpHeight * gravity);
+
 	}
+
+	private void Slide()
+	{
+
+	}
+
 }
