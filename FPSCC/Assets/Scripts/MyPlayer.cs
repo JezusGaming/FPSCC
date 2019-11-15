@@ -84,14 +84,37 @@ public class MyPlayer : MonoBehaviour
 	private bool m_bCantStand = false;
 
 	private bool m_bCantCrouch = false;
+
+    private bool m_bSlide = false;
+
 	// will be used for slopes
 	private bool m_bCantProne;
 
 	// Q3: players can queue the next jump just before he hits the ground
 	private bool m_bWishJump = false;
 
+    [Tooltip("If the player ends up on a slope which is at least the Slope Limit as set on the character controller, then he will slide down.")]
+    [SerializeField]
+    private bool m_SlideWhenOverSlopeLimit = false;
 
-	private Vector3 m_v3MoveDirectionNorm = Vector3.zero;
+    [Tooltip("If checked and the player is on an object tagged \"Slide\", he will slide down it regardless of the slope limit.")]
+    [SerializeField]
+    private bool m_SlideOnTaggedObjects = false;
+
+    [Tooltip("How fast the player slides when on slopes as defined above.")]
+    [SerializeField]
+    private float m_SlideSpeed = 12.0f;
+
+
+    private RaycastHit m_Hit;
+    private float m_FallStartLevel;
+    private bool m_Falling;
+    private float m_SlideLimit;
+    private float m_RayDistance;
+    private Vector3 m_ContactPoint;
+    private bool m_PlayerControl = false;
+
+    private Vector3 m_v3MoveDirectionNorm = Vector3.zero;
 	private Vector3 m_v3PlayerVelocity = Vector3.zero;
 	private float m_fPlayerTopVelocity = 0.0f;
 
@@ -120,7 +143,11 @@ public class MyPlayer : MonoBehaviour
 												 transform.position.z);
 
 		FPSCC = GetComponent<CharacterController>();
-	}
+
+        m_RayDistance = FPSCC.height * .5f + FPSCC.radius;
+        m_SlideLimit = FPSCC.slopeLimit - .1f;
+
+    }
 
 	private void Update()
 	{
@@ -149,10 +176,10 @@ public class MyPlayer : MonoBehaviour
 		m_cameraTransform.rotation = Quaternion.Euler(m_fRotX, m_fRotY, 0);
 
 		/* Calculate top velocity IDK if i can use this for locking the max velocity I THINK IT WAS USED FOR UI*/
-		//Vector3 udp = playerVelocity;
-		//udp.y = 0.0f;
-		//if (udp.magnitude > playerTopVelocity)
-		//	playerTopVelocity = udp.magnitude;
+		Vector3 udp = m_v3PlayerVelocity;
+		udp.y = 0.0f;
+		//if (udp.magnitude > m_fPlayerTopVelocity)
+            m_fPlayerTopVelocity = udp.magnitude;
 
 		/* Movement, here's the important part */
 		// que jump checks if space is held down after each jump which ques the jump as the player is wishing to jump it should not que just jump when they are grounded and space is pressed.
@@ -180,6 +207,7 @@ public class MyPlayer : MonoBehaviour
 			// Set the camera's position to the transform
 			SetCameraYPos(m_fStandCameraYOffset);
 		}
+
 	}
 
 
@@ -328,12 +356,16 @@ public class MyPlayer : MonoBehaviour
 
 		var fDesSpeed = v3DesDir.magnitude;
 
-		ChangeStance(fDesSpeed, v3DesDir);
+		
 
-		// Reset the gravity velocity
-		m_v3PlayerVelocity.y = -m_fGravity * Time.deltaTime;
+        // Reset the gravity velocity
+        m_v3PlayerVelocity.y = -m_fGravity * Time.deltaTime;
 
-		if (Input.GetButton("Jump") && !m_bProned)
+        SlideDownSlope();
+
+        ChangeStance(fDesSpeed, v3DesDir);
+
+        if (Input.GetButton("Jump") && !m_bProned)
 		{
 			m_v3PlayerVelocity.y = m_fJumpSpeed;
 			// m_bWishJump = false;
@@ -477,8 +509,33 @@ public class MyPlayer : MonoBehaviour
 				m_bWalk = true;
 			}
 		}
+        if (Input.GetButton("Sprint") && Input.GetButtonDown("Crouch"))
+        {
+            if (!m_bCantCrouch)
+            {
+                m_bRun = false;
+                m_bCrouched = true;
+                m_bSlide = true;
+                m_bProned = false;
+                m_bWalk = false;
+            }
+        }
+        else if (m_bCantStand && !m_bCantCrouch && !m_bProned)
+        {
+            m_bCrouched = true;
+        }
+        else if (m_bSlide)
+        {
+            m_bCrouched = true;
+            m_bWalk = false;
+        }
+        else
+        {
+            m_bCrouched = false;
+            m_bWalk = true;
+        }
 
-		if (m_bCrouched)
+        if (m_bCrouched)
 		{
 			m_standingHitBox.enabled = true;
 			m_crouchHitBox.enabled = false;
@@ -488,11 +545,22 @@ public class MyPlayer : MonoBehaviour
 			FPSCC.center = m_crouchHitBox.center;
 			FPSCC.height = m_crouchHitBox.height;
 
-			fDesSpeed *= m_fCrouchSpeed;
+            if(m_bSlide)
+            {
+                fDesSpeed *= m_fCrouchSpeed;
 
-			Accelerate(v3DesDir, fDesSpeed, m_fRunAcceleration);
+                Accelerate(v3DesDir, fDesSpeed, m_fRunAcceleration);
 
-			m_fFriction = m_fOriginalFriction;
+                StartCoroutine("Slide");
+            }
+            else
+            {
+                fDesSpeed *= m_fCrouchSpeed;
+
+                Accelerate(v3DesDir, fDesSpeed, m_fRunAcceleration);
+
+                m_fFriction = m_fOriginalFriction;
+            }
 		}
 		else if (m_bProned)
 		{
@@ -542,9 +610,64 @@ public class MyPlayer : MonoBehaviour
 			m_fFriction = m_fOriginalFriction;
 		}
 	}
-	private void OnTriggerStay(Collider other)
+
+    private void SlideDownSlope()
+    {
+        bool sliding = false;
+        // See if surface immediately below should be slid down. We use this normally rather than a ControllerColliderHit point,
+        // because that interferes with step climbing amongst other annoyances
+        if (Physics.Raycast(transform.position, Vector3.down, out m_Hit, m_RayDistance))
+        {
+            if (Vector3.Angle(m_Hit.normal, Vector3.up) > m_SlideLimit)
+            {
+                sliding = true;
+            }
+        }
+        // However, just raycasting straight down from the center can fail when on steep slopes
+        // So if the above raycast didn't catch anything, raycast down from the stored ControllerColliderHit point instead
+        else
+        {
+            Physics.Raycast(m_ContactPoint + Vector3.up, -Vector3.up, out m_Hit);
+            if (Vector3.Angle(m_Hit.normal, Vector3.up) > m_SlideLimit)
+            {
+                sliding = true;
+            }
+        }
+
+        // If sliding (and it's allowed), or if we're on an object tagged "Slide", get a vector pointing down the slope we're on
+        if ((sliding && m_SlideWhenOverSlopeLimit) || (m_SlideOnTaggedObjects && m_Hit.collider.tag == "Slide"))
+        {
+            Vector3 hitNormal = m_Hit.normal;
+            m_v3PlayerVelocity = new Vector3(hitNormal.x, -hitNormal.y, hitNormal.z);
+            Vector3.OrthoNormalize(ref hitNormal, ref m_v3PlayerVelocity);
+            m_v3PlayerVelocity *= m_SlideSpeed;
+            m_PlayerControl = false;
+        }
+        // Otherwise recalculate moveDirection directly from axes, adding a bit of -y to avoid bumping down inclines
+        //else if(m_bRun)
+        //{
+        //    m_v3PlayerVelocity = new Vector3(m_fVerticalMovement, -0.75f, m_fHorizontalMovement);
+        //    m_v3PlayerVelocity = transform.TransformDirection(m_v3PlayerVelocity) * m_fRunSpeed;
+        //    m_PlayerControl = true;
+        //}
+        //else
+        //{
+        //    m_v3PlayerVelocity = new Vector3(m_fVerticalMovement, -0.75f, m_fHorizontalMovement);
+        //    m_v3PlayerVelocity = transform.TransformDirection(m_v3PlayerVelocity) * m_fWalkSpeed;
+        //    m_PlayerControl = true;
+        //}
+    }
+
+    IEnumerator Slide()
+    {
+        m_fFriction = 0.5f;
+        yield return new WaitForSeconds(2.0f);
+        m_bSlide = false;
+        m_bCrouched = true;
+    }
+
+    private void OnTriggerStay(Collider other)
 	{
-		Debug.Log(other.name);
 		if (other.tag != "Player")
 		{
 			Rigidbody RB = other.gameObject.GetComponent<Rigidbody>();
@@ -588,15 +711,5 @@ public class MyPlayer : MonoBehaviour
 			m_bCantProne = false;
 			m_bCantStand = false;
 		}
-	}
-
-	void OnGUI()
-	{
-		//Set up the maximum and minimum values the Slider can return (you can change these)
-		float max, min;
-		max = 150.0f;
-		min = 20.0f;
-		//This Slider changes the field of view of the Camera between the minimum and maximum values
-		m_fFieldOfView = GUI.HorizontalSlider(new Rect(20, 20, 100, 40), m_fFieldOfView, min, max);
 	}
 }
