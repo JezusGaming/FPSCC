@@ -83,6 +83,8 @@ public class MyPlayer : MonoBehaviour
 	private bool m_bCantCrouch = false;
 	// Used to check when the player is sprint sliding
 	private bool m_bSlide = false;
+	// Used to tell when sliding down a hill to stop jumping
+	private bool m_bSliding = false;
 	// Will be used for slopes
 	private bool m_bCantProne;
     [Tooltip("If the player ends up on a slope which is greater then the Slope Limit as set on the character controller, then he will slide down.")]
@@ -235,7 +237,6 @@ public class MyPlayer : MonoBehaviour
 				m_v3PlayerVelocity.z = -m_fMaxVelocitySpeed;
 			}
 		}
-
 	}
 
 	//--------------------------------------------------------------------------------
@@ -388,12 +389,17 @@ public class MyPlayer : MonoBehaviour
 		ChangeStance(fDesSpeed, v3DesDir);
 
 		// Checks if the jump button is pressed and the player is not proned then jumps
-        if (Input.GetButton("Jump") && !m_bProned)
+        if (Input.GetButton("Jump") && !m_bProned && !m_bSliding)
 		{
 			m_v3PlayerVelocity.y = m_fJumpSpeed;
 		}
 		// Applies friction to the player to slow down their momentum
-		ApplyFriction(1.0f);
+		if(m_bRun && Input.GetButton("Jump"))
+		{
+			ApplyFriction(3.0f);
+		}
+		else
+			ApplyFriction(1.0f);
 	}
 
 	//--------------------------------------------------------------------------------
@@ -493,6 +499,8 @@ public class MyPlayer : MonoBehaviour
 	//--------------------------------------------------------------------------------
 	private void ChangeStance(float fDesSpeed, Vector3 v3DesDir)
 	{
+		// If the crouch button is pressed then set crouch to true and the other
+		// stances to false
 		if (Input.GetButton("Crouch"))
 		{
 			if(!m_bCantCrouch)
@@ -503,16 +511,19 @@ public class MyPlayer : MonoBehaviour
 				m_bWalk = false;
 			}
 		}
+		// If the player can not stand then they stay crouched
 		else if(m_bCantStand && !m_bCantCrouch && !m_bProned)
 		{
 			m_bCrouched = true;
 		}
+		// Otherwise make them stand
 		else
 		{
 			m_bCrouched = false;
 			m_bWalk = true;
 		}
-	
+		// If the prone button is pressed then set prone to true and the other
+		// stances to false
 		if (Input.GetButtonDown("Prone"))
 		{
 			if (m_bCantStand || m_bCantCrouch)
@@ -522,6 +533,7 @@ public class MyPlayer : MonoBehaviour
 				m_bRun = false;
 				m_bWalk = false;
 			}
+			// If the player can crouch and then make the player go to crouch
 			else if (!m_bCantCrouch && m_bProned)
 			{
 				m_bProned = !m_bProned;
@@ -529,6 +541,7 @@ public class MyPlayer : MonoBehaviour
 				m_bRun = false;
 				m_bWalk = false;
 			}
+			// Otherwise make them stand
 			else
 			{
 				m_bProned = !m_bProned;
@@ -537,7 +550,8 @@ public class MyPlayer : MonoBehaviour
 				m_bWalk = !m_bWalk;
 			}
 		}
-
+		// If the sprint button is pressed then make the player sprint and
+		// set the other stances to false
 		if (Input.GetButton("Sprint"))
 		{
 			if(!m_bCantStand && !m_bProned)
@@ -548,6 +562,7 @@ public class MyPlayer : MonoBehaviour
 				m_bWalk = false;
 			}
 		}
+		// If the player is not running and they can stand then make them walk
 		else
 		{
 			if (!m_bCantStand && !m_bProned)
@@ -561,7 +576,9 @@ public class MyPlayer : MonoBehaviour
 				m_bWalk = true;
 			}
 		}
-        if (Input.GetButton("Sprint") && Input.GetButtonDown("Crouch"))
+		// If the sprint and crouch button is pressed then make the player slide and
+		// set the other stances to false
+		if (Input.GetButton("Sprint") && Input.GetButtonDown("Crouch"))
         {
             if (!m_bCantCrouch)
             {
@@ -572,16 +589,19 @@ public class MyPlayer : MonoBehaviour
                 m_bWalk = false;
             }
         }
+		// If the player can not stand then keep them crouch
         else if (m_bCantStand && !m_bCantCrouch && !m_bProned)
         {
             m_bCrouched = true;
         }
+		// If they are sliding then they should be in a crouch position
         else if (m_bSlide)
         {
             m_bCrouched = true;
             m_bWalk = false;
         }
-
+		// If crouched is true then it does all the code for crouching such as changing the camera pos
+		// the player height, hitboxes, speed, and friction.
         if (m_bCrouched)
 		{
 			m_standingHitBox.enabled = true;
@@ -609,6 +629,8 @@ public class MyPlayer : MonoBehaviour
                 m_fFriction = m_fOriginalFriction;
             }
 		}
+		// If proned is true then it does all the code for proning such as changing the camera pos
+		// the player height, hitboxes, speed, and friction.
 		else if (m_bProned)
 		{
 			m_standingHitBox.enabled = false;
@@ -626,6 +648,8 @@ public class MyPlayer : MonoBehaviour
 
 			m_fFriction = 1.0f;
 		}
+		// If run is true then it does all the code for sprinting such as changing the camera pos
+		// the player height, hitboxes, speed, and friction.
 		else if (m_bRun)
 		{
 			m_standingHitBox.enabled = true;
@@ -641,6 +665,8 @@ public class MyPlayer : MonoBehaviour
 
 			m_fFriction = m_fOriginalFriction;
 		}
+		// If the player is walking then it does all the code for walking such as changing the camera pos
+		// the player height, hitboxes, speed, and friction.
 		else
 		{
 			m_standingHitBox.enabled = true;
@@ -664,14 +690,14 @@ public class MyPlayer : MonoBehaviour
 	//--------------------------------------------------------------------------------
 	private void SlideDownSlope()
     {
-        bool sliding = false;
+		m_bSliding = false;
         // See if surface immediately below should be slid down. We use this normally rather than a ControllerColliderHit point,
         // because that interferes with step climbing amongst other annoyances
         if (Physics.Raycast(transform.position, Vector3.down, out m_Hit, m_fRayDistance))
         {
             if (Vector3.Angle(m_Hit.normal, Vector3.up) > m_fSlideLimit)
             {
-                sliding = true;
+				m_bSliding = true;
             }
         }
         // However, just raycasting straight down from the center can fail when on steep slopes
@@ -681,12 +707,12 @@ public class MyPlayer : MonoBehaviour
             Physics.Raycast(m_v3ContactPoint + Vector3.up, -Vector3.up, out m_Hit);
             if (Vector3.Angle(m_Hit.normal, Vector3.up) > m_fSlideLimit)
             {
-                sliding = true;
+				m_bSliding = true;
             }
         }
 		
 		// If sliding (and it's allowed), or if we're on an object tagged "Slide", get a vector pointing down the slope we're on
-		if ((sliding && m_bSlideWhenOverSlopeLimit) || (m_bSlideOnTaggedObjects && m_Hit.collider.tag == "Slide"))
+		if ((m_bSliding && m_bSlideWhenOverSlopeLimit) || (m_bSlideOnTaggedObjects && m_Hit.collider.tag == "Slide"))
         {
             Vector3 hitNormal = m_Hit.normal;
             m_v3PlayerVelocity = new Vector3(hitNormal.x, -hitNormal.y, hitNormal.z);
@@ -732,6 +758,10 @@ public class MyPlayer : MonoBehaviour
 	//--------------------------------------------------------------------------------
 	private void OnTriggerStay(Collider other)
 	{
+		if(other.tag == "DeathZone")
+		{
+			transform.position = new Vector3(0, 5.23f, -3.724f);
+		}
 		if (other.tag != "Player")
 		{
 			Rigidbody RB = other.gameObject.GetComponent<Rigidbody>();
@@ -766,7 +796,7 @@ public class MyPlayer : MonoBehaviour
 				}
 			}
 			else
-			{// Needs fixing does not crouch under objects with no rigid body
+			{
 				if (m_bCrouched)
 				{
 					m_bCantCrouch = false;
