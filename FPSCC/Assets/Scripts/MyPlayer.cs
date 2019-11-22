@@ -172,7 +172,7 @@ public class MyPlayer : MonoBehaviour
 		// Sets the FOV of the camera
 		Camera.main.fieldOfView = m_fFieldOfView;
 
-		/* Ensure that the cursor is locked into the screen */
+		// Ensure that the cursor is locked into the screen 
 		if (Cursor.lockState != CursorLockMode.Locked)
 		{
 			if (Input.GetButtonDown("Fire1"))
@@ -193,11 +193,6 @@ public class MyPlayer : MonoBehaviour
 		this.transform.rotation = Quaternion.Euler(0, m_fRotY, 0);
 		// Rotates the camera
 		m_cameraTransform.rotation = Quaternion.Euler(m_fRotX, m_fRotY, 0);
-
-		/* Calculate current velocity IDK if i can use this for locking the max velocity I THINK IT WAS USED FOR UI*/
-		Vector3 udp = m_v3PlayerVelocity;
-		udp.y = 0.0f;
-        m_fPlayerTopVelocity = udp.magnitude;
 
 		// If the player is grounded then do ground move otherwise use airmove as they are in the air
 		if (FPSCC.isGrounded)
