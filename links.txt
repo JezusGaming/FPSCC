@@ -1,8 +1,0 @@
-https://github.com/WiggleWizard/quake3-movement-unity3d/blob/master/CPMPlayer.cs
-https://www.youtube.com/watch?v=B9mqpaUJ0-g
-https://www.youtube.com/watch?v=YvING8c_-HU
-https://forum.unity.com/threads/unity-simple-fps-character-controller-c-tutorial.559474/
-https://www.youtube.com/watch?v=n-KX8AeGK7E
-https://answers.unity.com/questions/1080141/i-want-to-add-some-velocity-controll-to-my-charact.html
-https://answers.unity.com/questions/1269021/momentum-with-character-controller.html
-https://www.youtube.com/watch?v=98MBwtZU2kk
