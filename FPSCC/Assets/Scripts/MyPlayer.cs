@@ -4,105 +4,112 @@ using UnityEngine;
 
 public class MyPlayer : MonoBehaviour
 {
+	[Header("Camera Settings")]
 	// Transform of the camera
 	public Transform m_cameraTransform;
-	// The height at which the camera is bound to
-	public float m_fStandCameraYOffset = 0.6f;
-	// Mouse X Sensitivity
-	public float m_fXMouseSensitivity = 30.0f;
-	// Mouse Y Sensitivity
-	public float m_fYMouseSensitivity = 30.0f;
 	// Used to change how fast the camera moves between stances
 	public float m_fCameraChangeStanceSpeed = 0.1f;
 	// Used to set the FOV for the camera
 	[Range(20.0f, 150.0f)]
 	public float m_fFieldOfView;
+	// The height at which the camera is bound to
+	public float m_fStandCameraYOffset = 0.6f;
 	// Camera rotation X
 	private float m_fRotX = 0.0f;
 	// Camera rotation Y
 	private float m_fRotY = 0.0f;
-	// Frame occuring factors
-	public float m_fGravity = 20.0f;
-	// Ground friction
-	public float m_fFriction = 3;
-	// Used to display real time fricton values
-	private float m_fPlayerFriction = 0.0f;
-	// Stores the original friction
-	private float m_fOriginalFriction = 0.0f;
-	// Vertical Movement
-	private float m_fVerticalMovement;
-	// Horizontal Movement
-	private float m_fHorizontalMovement;
-	// Used to limit how fast the player can go
-	public float m_fMaxVelocitySpeed;
-	// Ground run speed
-	public float m_fRunSpeed = 7.0f;
-	// Ground walk speed
-	public float m_fWalkSpeed = 3.0f;
-	// Ground crouch speed
-	public float m_fCrouchSpeed = 3.0f;
-	// Ground prone speed
-	public float m_fProneSpeed = 1.5f;
-	// Ground accel
-	public float m_fRunAcceleration = 14.0f;
-	// Deacceleration that occurs when running on the ground
-	public float m_fRunDeacceleration = 10.0f;
+	// Mouse X Sensitivity
+	public float m_fXMouseSensitivity = 30.0f;
+	// Mouse Y Sensitivity
+	public float m_fYMouseSensitivity = 30.0f;
+
+	[Header("Movement Settings")]
 	// Air accel
 	public float m_fAirAcceleration = 2.0f;
 	// Deacceleration experienced when ooposite strafing
 	public float m_fAirDecceleration = 2.0f;
 	// How precise air control is
 	public float m_fAirControl = 0.3f;
+	// Ground crouch speed
+	public float m_fCrouchSpeed = 3.0f;
+	// Ground friction
+	public float m_fFriction = 3;
+	// Frame occuring factors
+	public float m_fGravity = 20.0f;
+	// Horizontal Movement
+	private float m_fHorizontalMovement;
+	// The speed at which the character's up axis gains when hitting jump
+	public float m_fJumpSpeed = 8.0f;
+	// Used to limit how fast the player can go
+	public float m_fMaxVelocitySpeed;
+	// Stores the original friction
+	private float m_fOriginalFriction = 0.0f;
+	// Used to display real time fricton values
+	private float m_fPlayerFriction = 0.0f;
+	// Ground prone speed
+	public float m_fProneSpeed = 1.5f;
+	// Used for sprinting
+	private bool m_bRun = false;
+	// Ground accel
+	public float m_fRunAcceleration = 14.0f;
+	// Deacceleration that occurs when running on the ground
+	public float m_fRunDeacceleration = 10.0f;
+	// Ground run speed
+	public float m_fRunSpeed = 7.0f;
 	// How fast acceleration occurs to get up to sideStrafeSpeed when
 	public float m_fSideStrafeAcceleration = 50.0f;
 	// What the max speed to generate when side strafing
 	public float m_fSideStrafeSpeed = 1.0f;
-	// The speed at which the character's up axis gains when hitting jump
-	public float m_fJumpSpeed = 8.0f;
-	// Used for sprinting
-	private bool m_bRun = false;
-	// Used to change the hitbox
-	public CapsuleCollider m_standingHitBox;
-	// Used to crouch
-	private bool m_bCrouched = false;
-	// Used to change the hitbox
-	public CapsuleCollider m_crouchHitBox;
+	// Used to go from sprinting to walking if ticked
+	public bool m_bSprintToWalk = false;
+	// Vertical Movement
+	private float m_fVerticalMovement;
+	// Ground walk speed
+	public float m_fWalkSpeed = 3.0f;
+	
+	[Header("Stance Settings")]
 	// Used to set the camera up for crouch pos
 	public float m_fCrouchCameraYOffset;
-	// Used to prone
-	private bool m_bProned = false;
-	// Used to change the hitbox
-	public CapsuleCollider m_proneHitBox;
-	// Used to set the camera up for prone pos
-	public float m_fProneCameraYOffset;
-	// Used to check if no crouch, prone or sprint action is happening
-	private bool m_bWalk = true;
-	// Used to Check if the player cant stand
-	private bool m_bCantStand = false;
 	// Used to Check if the player cant crouch
 	private bool m_bCantCrouch = false;
-	// Used to check when the player is sprint sliding
-	private bool m_bSlide = false;
-	// Used to tell when sliding down a hill to stop jumping
-	private bool m_bSliding = false;
-	// Will be used for slopes
-	private bool m_bCantProne;
-    [Tooltip("If the player ends up on a slope which is greater then the Slope Limit as set on the character controller, then he will slide down.")]
-    [SerializeField]
-	// Used to make the player slide on slopes that are above the slope limit
-    private bool m_bSlideWhenOverSlopeLimit = false;
-    [Tooltip("If checked and the player is on an object tagged \"Slide\", he will slide down it regardless of the slope limit.")]
-    [SerializeField]
+	// Used to change the hitbox
+	public CapsuleCollider m_crouchHitBox;
+	// Used to Check if the player cant stand
+	private bool m_bCantStand = false;
+	// Used to prone
+	private bool m_bProned = false;
+	// Used to set the camera up for prone pos
+	public float m_fProneCameraYOffset;
+	// Used to change the hitbox
+	public CapsuleCollider m_proneHitBox;
+	// Used to change the hitbox
+	public CapsuleCollider m_standingHitBox;
+	// Used to check if no crouch, prone or sprint action is happening
+	private bool m_bWalk = true;
+	// Used to crouch
+	private bool m_bCrouched = false;
+
+	[Header("Slide Settings")]
+	[Tooltip("If checked and the player is on an object tagged \"Slide\", he will slide down it regardless of the slope limit.")]
+	[SerializeField]
 	// Used to make the player slide on slopes with a tag
 	private bool m_bSlideOnTaggedObjects = false;
-    [Tooltip("How fast the player slides when on slopes as defined above.")]
-    [SerializeField]
+	[Tooltip("How fast the player slides when on slopes as defined above.")]
+	[SerializeField]
 	// Used to set how fast the slide speed is
-    private float m_fSlideSpeed = 12.0f;
+	private float m_fSlideSpeed = 12.0f;
 	[Tooltip("How long a sprint slide wait goes for.")]
 	[SerializeField]
 	// Used to set how long a sprint slide wait goes for
 	private float m_fSlideTime = 2.0f;
+	[Tooltip("If the player ends up on a slope which is greater then the Slope Limit as set on the character controller, then he will slide down.")]
+	[SerializeField]
+	// Used to make the player slide on slopes that are above the slope limit
+	private bool m_bSlideWhenOverSlopeLimit = false;
+	// Used to check when the player is sprint sliding
+	private bool m_bSlide = false;
+	// Used to tell when sliding down a hill to stop jumping
+	private bool m_bSliding = false;
 	// Used to get data from the object being hit in the raycast
 	private RaycastHit m_Hit;
 	// Used to set the slope limit the player can walk up
@@ -111,6 +118,7 @@ public class MyPlayer : MonoBehaviour
     private float m_fRayDistance;
 	// Used for slide calculations and the contact point hit
 	private Vector3 m_v3ContactPoint;
+
 	// Used to store the move direction normalised for the movment
     private Vector3 m_v3MoveDirectionNorm = Vector3.zero;
 	// Stores the player velocity allowing for the player to have momentum
@@ -659,8 +667,15 @@ public class MyPlayer : MonoBehaviour
 			FPSCC.center = m_standingHitBox.center;
 			FPSCC.height = m_standingHitBox.height;
 
-			fDesSpeed *= m_fRunSpeed;
-
+			if(m_bSprintToWalk)
+			{
+				fDesSpeed *= m_fWalkSpeed;
+			}
+			else
+			{
+				fDesSpeed *= m_fRunSpeed;
+			}
+			
 			Accelerate(v3DesDir, fDesSpeed, m_fRunAcceleration);
 
 			m_fFriction = m_fOriginalFriction;
@@ -676,7 +691,14 @@ public class MyPlayer : MonoBehaviour
 			FPSCC.center = m_standingHitBox.center;
 			FPSCC.height = m_standingHitBox.height;
 
-			fDesSpeed *= m_fWalkSpeed;
+			if(m_bSprintToWalk)
+			{
+				fDesSpeed *= m_fRunSpeed;
+			}
+			else
+			{
+				fDesSpeed *= m_fWalkSpeed;
+			}
 
 			Accelerate(v3DesDir, fDesSpeed, m_fRunAcceleration);
 
@@ -772,27 +794,23 @@ public class MyPlayer : MonoBehaviour
 					if (m_bCrouched)
 					{
 						m_bCantCrouch = false;
-						m_bCantProne = false;
 						m_bCantStand = true;
 					}
 					else if (m_bProned)
 					{
 						m_bCantCrouch = true;
-						m_bCantProne = false;
 						m_bCantStand = true;
 					}
 					else if (m_bWalk)
 					{
 						m_bCantStand = true;
 						m_bCantCrouch = false;
-						m_bCantProne = false;
 					}
 				}
 				else
 				{
 					m_bCantStand = false;
 					m_bCantCrouch = false;
-					m_bCantProne = false;
 				}
 			}
 			else
@@ -800,20 +818,17 @@ public class MyPlayer : MonoBehaviour
 				if (m_bCrouched)
 				{
 					m_bCantCrouch = false;
-					m_bCantProne = false;
 					m_bCantStand = true;
 				}
 				else if (m_bProned)
 				{
 					m_bCantCrouch = true;
-					m_bCantProne = false;
 					m_bCantStand = true;
 				}
 				else if (m_bWalk)
 				{
 					m_bCantStand = true;
 					m_bCantCrouch = false;
-					m_bCantProne = false;
 				}
 			}
 		}
@@ -832,7 +847,6 @@ public class MyPlayer : MonoBehaviour
 		if (other.tag != "Player")
 		{
 			m_bCantCrouch = false;
-			m_bCantProne = false;
 			m_bCantStand = false;
 		}
 	}
