@@ -830,3 +830,7 @@ Test_Data/Managed/UnityEngine.UnityWebRequestWWWModule.xml
 Test_Data/Managed/UnityEngine.UnityWebRequestWWWModule.dll
 Test_Data/Managed/UnityEngine.UnityWebRequestTextureModule.xml
 UnityPlayer.dll
+
+# Remove large file
+FPSCC/Assets/Animations/FPS/Ch15_nonPBR.fbx
+FPSCC/Assets/Animations/FPS/Ch15_nonPBR.fbx.meta
